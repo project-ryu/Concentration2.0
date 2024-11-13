@@ -23,26 +23,31 @@ class ViewController: UIViewController {
     
     private var gameState = GameState()
     
-    let background = UIImageView(image: UIImage(named: "Card-Mahjong")!)
-    //rename to puzzleCard 
+    let puzzleCard = UIImageView(image: UIImage(named: "Card-Mahjong")!)
+    //rename to puzzleCard
 
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        let backgroundImageView = UIImageView(frame: view.bounds)
+            backgroundImageView.image = UIImage(named: "tableBackground")
+            backgroundImageView.contentMode = .scaleAspectFill
+            view.addSubview(backgroundImageView)
+            view.sendSubviewToBack(backgroundImageView)
         
-        let aspect_ratio = background.bounds.height / background.bounds.width
+        let aspect_ratio = puzzleCard.bounds.height / puzzleCard.bounds.width
         
-        let width = view.bounds.width * 0.9
+        let width = view.bounds.width * 1
         let height = aspect_ratio * width
 
-        background.bounds.size.width = width
-        background.bounds.size.height = height
+        puzzleCard.bounds.size.width = width
+        puzzleCard.bounds.size.height = height
         
-        background.center.x = view.bounds.width / 2
-        background.center.y = view.bounds.height / 2
+        puzzleCard.center.x = view.bounds.width / 2
+        puzzleCard.center.y = view.bounds.height / 2
 
        // view.insertSubview(background, at: 0)
-        view.addSubview(background)
+        view.addSubview(puzzleCard)
         // view.sendSubviewToBack(background)
         
         setupGame()
@@ -111,19 +116,19 @@ class ViewController: UIViewController {
     }
     
     func layoutCardGrid () {
-        var y = CGFloat(310)
-        var x = CGFloat(100)
+        var y = CGFloat(400)
+        var x = CGFloat(60)
         
         for index in 1...gameState.cardViews.count {
             let cardView = gameState.cardViews[index - 1]
             cardView.frame.origin.x = x
             cardView.frame.origin.y = y
-            if index % 2 == 0 {
-                x = 100
-                y += 110
+            if index % 4 == 0 {
+                x = 60
+                y += 150
             }
             else {
-                x += 120
+                x += 70
             }
         }
     }
@@ -205,6 +210,6 @@ class ViewController: UIViewController {
 
 // change code for card views and positioning to be true center, or at least mathematically centered
 // add animation of cards being distributed
-    // func layoutCards --> go thru cards in order and JUST lays out a grid
-    //
+// func layoutCards --> go thru cards in order and JUST lays out a grid
 // next add animate shuffling cards during setupGame
+// matchedPairs add animation to pop up before sliding out, maybe haptic? sfx? in general for tapping cards too
