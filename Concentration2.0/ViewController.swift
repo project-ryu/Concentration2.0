@@ -136,7 +136,7 @@ class ViewController: UIViewController {
         
         healthRegenTimer?.invalidate()
         healthRegenTimer = Timer.scheduledTimer(
-            timeInterval: 1.0,
+            timeInterval: 5.0,
             target: self,
             selector: #selector(regenerateHealth),
             userInfo: nil,
@@ -268,23 +268,57 @@ class ViewController: UIViewController {
         
         gameState.matchedPairs += 1
         
-        let damage: Int
-            if firstCard.faceImage == UIImage(named: "clubs") {
-                damage = 10
-            } else if firstCard.faceImage == UIImage(named: "hearts") {
-                damage = 20
-            } else if firstCard.faceImage == UIImage(named: "spades") {
-                damage = 30
-            } else if firstCard.faceImage == UIImage(named: "diamonds") {
-                damage = 40
-            } else {
-                damage = 0
-            }
-        
+        if firstCard.faceImage == UIImage(named: "hearts") {
+            damageOverTime(damagePerTick: 5, ticks: 10, interval: 1.0)
+        } else {
+            let damage = damageValue(for: firstCard.faceImage)
+            instantDamage(damage)
+        }
+    }
+    
+    func damageValue(for faceImage: UIImage?) -> Int {
+        switch faceImage {
+        case UIImage(named: "clubs"):
+            return 10
+        case UIImage(named: "spades"):
+            return 25
+        case UIImage(named: "diamonds"):
+            return 50
+        default:
+            return 0
+        }
+    }
+    func instantDamage(_ damage: Int) {
         gameState.enemyHealth -= damage
+        updateHealthBar()
+        displayDamageLabel("-\(damage)", at: healthBar.frame)
+    }
+
+    func damageOverTime(damagePerTick: Int, ticks: Int, interval: TimeInterval) {
+        var remainingTicks = ticks
+        let totalDamage = damagePerTick * ticks
+        displayDamageLabel("DoT: -\(totalDamage)", at: healthBar.frame)
         
+        Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { timer in
+            if remainingTicks <= 0 || self.gameState.enemyHealth <= 0 {
+                timer.invalidate()
+                return
+            }
+            self.gameState.enemyHealth -= damagePerTick
+            self.updateHealthBar()
+            remainingTicks -= 1
+        }
+    }
+    func updateHealthBar() {
+        let progress = max(0, Float(gameState.enemyHealth) / 100)
+        UIView.animate(withDuration: 0.3) {
+            self.healthBar.progress = progress
+        }
+        currentHealthValue.text = "\(max(0, gameState.enemyHealth))/100"
+    }
+    func displayDamageLabel(_ text: String, at frame: CGRect) {
         let damageLabel = UILabel(frame: CGRect(x: healthBar.frame.width, y: healthBar.frame.minY, width: 100, height: 50))
-        damageLabel.text = "-\(damage)"
+        damageLabel.text = text
         damageLabel.textAlignment = .center
         damageLabel.textColor = .red
         damageLabel.font = UIFont.boldSystemFont(ofSize: 20)
