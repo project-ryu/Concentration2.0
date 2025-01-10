@@ -55,6 +55,9 @@ class ViewController: UIViewController {
     let healthBar = HealthBarView()
     let currentHealthValue = UILabel()
     var healthRegenTimer: Timer?
+    
+    var burningImageView: UIImageView?
+    var frozenImageView: UIImageView?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -69,6 +72,7 @@ class ViewController: UIViewController {
     }
     
     func setupGame() {
+        
         gameState = GameState()
     
         healthBar.layer.cornerRadius = 20
@@ -90,16 +94,15 @@ class ViewController: UIViewController {
         currentHealthValue.backgroundColor = UIColor.clear
         view.addSubview(currentHealthValue)
         
-        
         let cardFaces: [UIImage] = [
-            UIImage(named: "clubs")!,
-            UIImage(named: "clubs")!,
-            UIImage(named: "hearts")!,
-            UIImage(named: "hearts")!,
-            UIImage(named: "spades")!,
-            UIImage(named: "spades")!,
-            UIImage(named: "diamonds")!,
-            UIImage(named: "diamonds")!
+            UIImage(named: "air")!,
+            UIImage(named: "air")!,
+            UIImage(named: "fire")!,
+            UIImage(named: "fire")!,
+            UIImage(named: "earth")!,
+            UIImage(named: "earth")!,
+            UIImage(named: "water")!,
+            UIImage(named: "water")!
         ].shuffled()
         
         for faceImage in cardFaces {
@@ -111,7 +114,7 @@ class ViewController: UIViewController {
             subview.center.y = view.bounds.width * -0.15
             // same relative distance for any device
             // change point values to percentages for relative scaling, example: 70/width of iphone17 * width of view.bounds
-            subview.image = UIImage(named: "suits")
+            subview.image = UIImage(named: "elements")
             subview.isUserInteractionEnabled = true
             subview.layer.cornerRadius = 10
             subview.layer.shadowOpacity = 1
@@ -238,7 +241,7 @@ class ViewController: UIViewController {
                     duration: 0.3,
                     options: .transitionFlipFromRight,
                     animations: {
-                        firstCard.image = UIImage(named: "suits")
+                        firstCard.image = UIImage(named: "elements")
                     },
                     completion: nil
                 )
@@ -248,7 +251,7 @@ class ViewController: UIViewController {
                     duration: 0.3,
                     options: .transitionFlipFromRight,
                     animations: {
-                        secondCard.image = UIImage(named: "suits")
+                        secondCard.image = UIImage(named: "elements")
                     },
                     completion: nil
                 )
@@ -268,8 +271,10 @@ class ViewController: UIViewController {
         
         gameState.matchedPairs += 1
         
-        if firstCard.faceImage == UIImage(named: "hearts") {
-            damageOverTime(damagePerTick: 5, ticks: 10, interval: 1.0)
+        if firstCard.faceImage == UIImage(named: "fire") {
+            damageOverTime(damagePerTick: 10, ticks: 5, interval: 1.0)
+        } else if firstCard.faceImage == UIImage(named: "water") {
+            pauseHealthRegen(for: 5.0)
         } else {
             let damage = damageValue(for: firstCard.faceImage)
             instantDamage(damage)
@@ -278,16 +283,17 @@ class ViewController: UIViewController {
     
     func damageValue(for faceImage: UIImage?) -> Int {
         switch faceImage {
-        case UIImage(named: "clubs"):
+        case UIImage(named: "water"):
             return 10
-        case UIImage(named: "spades"):
+        case UIImage(named: "air"):
             return 25
-        case UIImage(named: "diamonds"):
+        case UIImage(named: "earth"):
             return 50
         default:
             return 0
         }
     }
+    
     func instantDamage(_ damage: Int) {
         gameState.enemyHealth -= damage
         updateHealthBar()
@@ -296,26 +302,78 @@ class ViewController: UIViewController {
 
     func damageOverTime(damagePerTick: Int, ticks: Int, interval: TimeInterval) {
         var remainingTicks = ticks
-        let totalDamage = damagePerTick * ticks
-        displayDamageLabel("DoT: -\(totalDamage)", at: healthBar.frame)
+        burningStatus()
         
         Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { timer in
             if remainingTicks <= 0 || self.gameState.enemyHealth <= 0 {
+            //if and only if one or more are true, returns a boolean
+                self.removeBurningStatus()
                 timer.invalidate()
                 return
             }
             self.gameState.enemyHealth -= damagePerTick
             self.updateHealthBar()
+            self.displayDamageLabel("\(damagePerTick)", at: self.healthBar.frame)
             remainingTicks -= 1
         }
     }
-    func updateHealthBar() {
-        let progress = max(0, Float(gameState.enemyHealth) / 100)
-        UIView.animate(withDuration: 0.3) {
-            self.healthBar.progress = progress
+    
+    func pauseHealthRegen(for duration: TimeInterval) {
+        healthRegenTimer?.invalidate()
+        displayDamageLabel("FROZEN", at: healthBar.frame)
+        frozenStatus()
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+            self.startHealthRegen()
+            self.removeFrozenStatus()
         }
-        currentHealthValue.text = "\(max(0, gameState.enemyHealth))/100"
     }
+    
+    func startHealthRegen() {
+        healthRegenTimer?.invalidate()
+        healthRegenTimer = Timer.scheduledTimer(
+            timeInterval: 5.0,
+            target: self,
+            selector: #selector(regenerateHealth),
+            userInfo: nil,
+            repeats: true
+        )
+    }
+    
+    func burningStatus() {
+        let burningImage = UIImageView(image: UIImage(named: "fire"))
+        burningImage.frame = CGRect(
+            x: healthBar.frame.midX,
+            y: healthBar.frame.maxY + 10,
+            width: 20,
+            height: 20
+        )
+        view.addSubview(burningImage)
+        burningImageView = burningImage
+    }
+    
+    func removeBurningStatus() {
+        burningImageView?.removeFromSuperview()
+        burningImageView = nil
+    }
+    
+    func frozenStatus() {
+        let frozenImage = UIImageView(image: UIImage(named: "water"))
+        frozenImage.frame = CGRect(
+            x: healthBar.frame.midX + 25,
+            y: healthBar.frame.maxY + 10,
+            width: 20,
+            height: 20
+        )
+        view.addSubview(frozenImage)
+        frozenImageView = frozenImage
+    }
+    
+    func removeFrozenStatus() {
+        frozenImageView?.removeFromSuperview()
+        frozenImageView = nil
+    }
+    
     func displayDamageLabel(_ text: String, at frame: CGRect) {
         let damageLabel = UILabel(frame: CGRect(x: healthBar.frame.width, y: healthBar.frame.minY, width: 100, height: 50))
         damageLabel.text = text
@@ -336,15 +394,28 @@ class ViewController: UIViewController {
         UIView.animate(withDuration: 0.3, animations: {
             self.healthBar.progress = (Float(self.gameState.enemyHealth) / 100)
         })
-        
         currentHealthValue.text = "\(max(0, gameState.enemyHealth))/100"
         //doesn't allow health value to go below 0, string interpolated to display current health out of 100, and will return 0 if value drops below
+    }
+    
+    func updateHealthBar() {
+        let progress = max(0, Float(gameState.enemyHealth) / 100)
+        UIView.animate(withDuration: 0.3) {
+            self.healthBar.progress = progress
+        }
+        currentHealthValue.text = "\(max(0, gameState.enemyHealth))/100"
         
         if gameState.enemyHealth <= 0 {
-            healthRegenTimer?.invalidate()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                self.setupGame()
-            }
+            finishGame()
+        }
+    }
+    
+    func finishGame() {
+        healthRegenTimer?.invalidate()
+        displayDamageLabel("WIN!", at: healthBar.frame)
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            self.setupGame()
         }
     }
 }
