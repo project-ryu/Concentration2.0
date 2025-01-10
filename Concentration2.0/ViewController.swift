@@ -11,20 +11,50 @@ class CardView: UIImageView {
     var faceImage: UIImage?
 }
 
+class HealthBarView: UIView {
+    var progress: Float = 1.0 {
+        didSet {
+            setNeedsLayout()
+            layoutIfNeeded()
+        }
+    }
+    let fillView = UIView()
+    let fillContainerView = UIView()
+    
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        
+        fillContainerView.frame = bounds
+        fillContainerView.layer.cornerRadius = self.layer.cornerRadius
+        fillContainerView.clipsToBounds = true
+        addSubview(fillContainerView)
+        
+        fillView.backgroundColor = .red
+        fillContainerView.addSubview(fillView)
+        
+        fillView.frame = CGRect(
+            x: 0,
+            y: 0,
+            width: CGFloat(progress) * self.bounds.width,
+            height: self.bounds.height
+        )
+    }
+}
+
 class ViewController: UIViewController {
     struct GameState {
         var cardViews: [CardView] = []
         var matchedPairs = 0
+        var enemyHealth = 100
     }
     
     var selectedCards: [CardView] = []
-    
     var isRevealingCards = false
-    
     private var gameState = GameState()
     
-    let puzzleCard = UIImageView(image: UIImage(named: "Card-Mahjong")!)
-    //rename to puzzleCard
+    let healthBar = HealthBarView()
+    let currentHealthValue = UILabel()
+    var healthRegenTimer: Timer?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -35,26 +65,31 @@ class ViewController: UIViewController {
             view.addSubview(backgroundImageView)
             view.sendSubviewToBack(backgroundImageView)
         
-        let aspect_ratio = puzzleCard.bounds.height / puzzleCard.bounds.width
-        
-        let width = view.bounds.width * 1
-        let height = aspect_ratio * width
-
-        puzzleCard.bounds.size.width = width
-        puzzleCard.bounds.size.height = height
-        
-        puzzleCard.center.x = view.bounds.width / 2
-        puzzleCard.center.y = view.bounds.height / 2
-
-       // view.insertSubview(background, at: 0)
-        view.addSubview(puzzleCard)
-        // view.sendSubviewToBack(background)
-        
         setupGame()
     }
     
     func setupGame() {
         gameState = GameState()
+    
+        healthBar.layer.cornerRadius = 20
+        healthBar.frame = CGRect(x: 40, y:200, width: view.bounds.width - 80, height: 40)
+        healthBar.progress = 1.0
+        //.progress is a value between 0.0 and 1.0, like 0% - 100%
+        healthBar.backgroundColor = .lightGray
+        healthBar.layer.shadowOpacity = 1
+        healthBar.layer.shadowRadius = 3
+        healthBar.layer.shadowColor = UIColor.black.cgColor
+        healthBar.layer.shadowOffset = CGSize(width: 0, height: 1)
+        view.addSubview(healthBar)
+        
+        currentHealthValue.frame = healthBar.frame
+        currentHealthValue.text = "100/100"
+        currentHealthValue.textAlignment = .center
+        currentHealthValue.font = UIFont.boldSystemFont(ofSize: 14)
+        currentHealthValue.textColor = UIColor.white
+        currentHealthValue.backgroundColor = UIColor.clear
+        view.addSubview(currentHealthValue)
+        
         
         let cardFaces: [UIImage] = [
             UIImage(named: "clubs")!,
@@ -78,7 +113,6 @@ class ViewController: UIViewController {
             // change point values to percentages for relative scaling, example: 70/width of iphone17 * width of view.bounds
             subview.image = UIImage(named: "suits")
             subview.isUserInteractionEnabled = true
-            
             subview.layer.cornerRadius = 10
             subview.layer.shadowOpacity = 1
             subview.layer.shadowRadius = 3
@@ -87,10 +121,8 @@ class ViewController: UIViewController {
             
             let tapGesture = UITapGestureRecognizer(target: self, action: #selector(tappedCard(_:)))
             subview.addGestureRecognizer(tapGesture)
-            
-            
-            // eventually change out code to be mathematically centered, or construct the grid from scratch
             view.addSubview(subview)
+            
             gameState.cardViews.append(subview)
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -100,6 +132,27 @@ class ViewController: UIViewController {
                     self.layoutCardGrid()
                 }
             )
+        }
+        
+        healthRegenTimer?.invalidate()
+        healthRegenTimer = Timer.scheduledTimer(
+            timeInterval: 1.0,
+            target: self,
+            selector: #selector(regenerateHealth),
+            userInfo: nil,
+            repeats: true
+            //health bar animation is refilling regardless of the amount of regeneration being applied
+        )
+    }
+    
+    @objc func regenerateHealth() {
+        let regenerationValue = 5
+        if gameState.enemyHealth < 100 {
+            gameState.enemyHealth = min (100, gameState.enemyHealth + regenerationValue)
+            UIView.animate(withDuration: 0.3) {
+                self.healthBar.progress = Float(self.gameState.enemyHealth)
+            }
+            currentHealthValue.text = "\(gameState.enemyHealth)/100"
         }
     }
     func shuffleCards () {
@@ -115,23 +168,38 @@ class ViewController: UIViewController {
         )
     }
     
-    func layoutCardGrid () {
-        var y = CGFloat(400)
-        var x = CGFloat(60)
+    func layoutCardGrid() {
+        // Define # of rows and columns
+        let numColumns = 4
+        let numRows = (gameState.cardViews.count + numColumns - 1) / numColumns
         
-        for index in 1...gameState.cardViews.count {
-            let cardView = gameState.cardViews[index - 1]
-            cardView.frame.origin.x = x
-            cardView.frame.origin.y = y
-            if index % 4 == 0 {
-                x = 60
-                y += 150
-            }
-            else {
-                x += 70
+        // Calculate card size based on screen dimensions
+        let horizontalSpacing: CGFloat = 10
+        let verticalSpacing: CGFloat = 15
+        let cardWidth = (view.bounds.width - CGFloat(numColumns + 1) * horizontalSpacing) / CGFloat(numColumns)
+        let cardHeight = cardWidth * 1.43
+        
+        // Centering
+        let totalGridWidth = CGFloat(numColumns) * cardWidth + CGFloat(numColumns - 1) * horizontalSpacing
+        let totalGridHeight = CGFloat(numRows) * cardHeight + CGFloat(numRows - 1) * verticalSpacing
+        
+        let startX = (view.bounds.width - totalGridWidth) / 2
+        let startY = (view.bounds.height - totalGridHeight) / 2
+        
+        // Positioning
+        for (index, cardView) in gameState.cardViews.enumerated() {
+            let row = index / numColumns
+            let column = index % numColumns
+            
+            let x = startX + CGFloat(column) * (cardWidth + horizontalSpacing)
+            let y = startY + CGFloat(row) * (cardHeight + verticalSpacing)
+            
+            UIView.animate(withDuration: 0.5) {
+                cardView.frame = CGRect(x: x, y: y, width: cardWidth, height: cardHeight)
             }
         }
     }
+    
     @objc func tappedCard(_ sender: UITapGestureRecognizer) {
         guard !isRevealingCards else { return }
         guard let tappedCard = sender.view as? CardView else { return }
@@ -200,7 +268,46 @@ class ViewController: UIViewController {
         
         gameState.matchedPairs += 1
         
-        if gameState.matchedPairs == 4 {
+        let damage: Int
+            if firstCard.faceImage == UIImage(named: "clubs") {
+                damage = 10
+            } else if firstCard.faceImage == UIImage(named: "hearts") {
+                damage = 20
+            } else if firstCard.faceImage == UIImage(named: "spades") {
+                damage = 30
+            } else if firstCard.faceImage == UIImage(named: "diamonds") {
+                damage = 40
+            } else {
+                damage = 0
+            }
+        
+        gameState.enemyHealth -= damage
+        
+        let damageLabel = UILabel(frame: CGRect(x: healthBar.frame.width, y: healthBar.frame.minY, width: 100, height: 50))
+        damageLabel.text = "-\(damage)"
+        damageLabel.textAlignment = .center
+        damageLabel.textColor = .red
+        damageLabel.font = UIFont.boldSystemFont(ofSize: 20)
+        damageLabel.sizeToFit()
+        damageLabel.backgroundColor = .blue
+        view.addSubview(damageLabel)
+
+        UIView.animate(withDuration: 1.0, animations: {
+            damageLabel.alpha = 0
+            damageLabel.frame.origin.y -= 20
+        }) { _ in
+            damageLabel.removeFromSuperview()
+        }
+        
+        UIView.animate(withDuration: 0.3, animations: {
+            self.healthBar.progress = (Float(self.gameState.enemyHealth) / 100)
+        })
+        
+        currentHealthValue.text = "\(max(0, gameState.enemyHealth))/100"
+        //doesn't allow health value to go below 0, string interpolated to display current health out of 100, and will return 0 if value drops below
+        
+        if gameState.enemyHealth <= 0 {
+            healthRegenTimer?.invalidate()
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 self.setupGame()
             }
@@ -208,8 +315,3 @@ class ViewController: UIViewController {
     }
 }
 
-// change code for card views and positioning to be true center, or at least mathematically centered
-// add animation of cards being distributed
-// func layoutCards --> go thru cards in order and JUST lays out a grid
-// next add animate shuffling cards during setupGame
-// matchedPairs add animation to pop up before sliding out, maybe haptic? sfx? in general for tapping cards too
