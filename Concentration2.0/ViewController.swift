@@ -11,6 +11,18 @@ class CardView: UIImageView {
     var faceImage: UIImage?
 }
 
+// struct ActiveStatusEffect {
+//    let effect: StatusEffect
+//    let startTime: Date
+//    let duration: TimeInterval
+//    let imageView: UIImageView
+//}
+
+// enum StatusEffect {
+//     case burning
+//     case frozen
+//}
+
 class HealthBarView: UIView {
     var progress: Float = 1.0 {
         didSet {
@@ -58,6 +70,8 @@ class ViewController: UIViewController {
     
     var burningImageView: UIImageView?
     var frozenImageView: UIImageView?
+    
+//    var activeStatusEffects: [ActiveStatusEffect] = []
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -72,6 +86,7 @@ class ViewController: UIViewController {
     }
     
     func setupGame() {
+        
         
         gameState = GameState()
     
@@ -117,6 +132,7 @@ class ViewController: UIViewController {
             subview.image = UIImage(named: "elements")
             subview.isUserInteractionEnabled = true
             subview.layer.cornerRadius = 10
+            subview.clipsToBounds = true
             subview.layer.shadowOpacity = 1
             subview.layer.shadowRadius = 3
             subview.layer.shadowColor = UIColor.black.cgColor
@@ -128,6 +144,7 @@ class ViewController: UIViewController {
             
             gameState.cardViews.append(subview)
         }
+        
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             UIView.animate(
                 withDuration: 0.5,
@@ -138,13 +155,13 @@ class ViewController: UIViewController {
         }
         
         healthRegenTimer?.invalidate()
+        //? makes this an optional timer, and invalidate() is only called if healthRegenTimer isn't nil
         healthRegenTimer = Timer.scheduledTimer(
             timeInterval: 5.0,
             target: self,
             selector: #selector(regenerateHealth),
             userInfo: nil,
             repeats: true
-            //health bar animation is refilling regardless of the amount of regeneration being applied
         )
     }
     
@@ -152,16 +169,15 @@ class ViewController: UIViewController {
         let regenerationValue = 5
         if gameState.enemyHealth < 100 {
             gameState.enemyHealth = min (100, gameState.enemyHealth + regenerationValue)
-            UIView.animate(withDuration: 0.3) {
-                self.healthBar.progress = Float(self.gameState.enemyHealth)
-            }
-            currentHealthValue.text = "\(gameState.enemyHealth)/100"
+            updateHealthBar()
         }
     }
+    
     func shuffleCards () {
         gameState.cardViews = gameState.cardViews.shuffled()
         layoutCardGrid()
     }
+    
     override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
         UIView.animate(
             withDuration: 0.5,
@@ -172,30 +188,29 @@ class ViewController: UIViewController {
     }
     
     func layoutCardGrid() {
-        // Define # of rows and columns
-        let numColumns = 4
-        let numRows = (gameState.cardViews.count + numColumns - 1) / numColumns
-        
-        // Calculate card size based on screen dimensions
+        let columns = 4
+        let rows = (gameState.cardViews.count + columns - 1) / columns
         let horizontalSpacing: CGFloat = 10
         let verticalSpacing: CGFloat = 15
-        let cardWidth = (view.bounds.width - CGFloat(numColumns + 1) * horizontalSpacing) / CGFloat(numColumns)
+        let cardWidth = (view.bounds.width - CGFloat(columns + 1) * horizontalSpacing) / CGFloat(columns)
         let cardHeight = cardWidth * 1.43
         
         // Centering
-        let totalGridWidth = CGFloat(numColumns) * cardWidth + CGFloat(numColumns - 1) * horizontalSpacing
-        let totalGridHeight = CGFloat(numRows) * cardHeight + CGFloat(numRows - 1) * verticalSpacing
+        let totalGridWidth = CGFloat(columns) * cardWidth + CGFloat(columns - 1) * horizontalSpacing
+        let totalGridHeight = CGFloat(rows) * cardHeight + CGFloat(rows - 1) * verticalSpacing
         
         let startX = (view.bounds.width - totalGridWidth) / 2
         let startY = (view.bounds.height - totalGridHeight) / 2
         
-        // Positioning
+        // Positioning (loop)
         for (index, cardView) in gameState.cardViews.enumerated() {
-            let row = index / numColumns
-            let column = index % numColumns
+            //tuple calls both index (position in array) and value (cardViews)
+            let rowNumber = index / columns
+            let columnNumber = index % columns
+            //row & column numbering beings at 0, not 1
             
-            let x = startX + CGFloat(column) * (cardWidth + horizontalSpacing)
-            let y = startY + CGFloat(row) * (cardHeight + verticalSpacing)
+            let x = startX + CGFloat(columnNumber) * (cardWidth + horizontalSpacing)
+            let y = startY + CGFloat(rowNumber) * (cardHeight + verticalSpacing)
             
             UIView.animate(withDuration: 0.5) {
                 cardView.frame = CGRect(x: x, y: y, width: cardWidth, height: cardHeight)
@@ -329,6 +344,37 @@ class ViewController: UIViewController {
         }
     }
     
+//    func update() {
+//        // expire effects
+//        let now = Date.now
+//        for effect in activeStatusEffects {
+//            if now.timeIntervalSince(effect.startTime) > effect.duration {
+//              effect.imageView.removeFromSuperview()
+//                return false
+//            }
+//             return true
+//        }
+//        // apply health regen if needed
+//        if !activeStatusEffects.map { $0.effect }.contains(.frozen) {
+//          healthRegenTimer?.invalidate()
+//          startHealthRegen()
+//        } else {
+//              healthRegenTimer?.invalidate()
+//          }
+//
+//        // apply effects if needed
+//        for active_effect in activeStatusEffects {
+//            switch active_effect.effect {
+//            case .burning:
+//                if now.timeIntervalSince
+//                    // burn
+//                    lastBurnTime = now
+//                }
+//
+//            }
+//        }
+//    }
+    
     func startHealthRegen() {
         healthRegenTimer?.invalidate()
         healthRegenTimer = Timer.scheduledTimer(
@@ -341,6 +387,15 @@ class ViewController: UIViewController {
     }
     
     func burningStatus() {
+//        activeStatusEffects.append(
+//            ActiveStatusEffect(
+//                effect: .burning,
+//                startTime: Date.now,
+//                duration: 6.5
+//            )
+//        )
+        
+        
         let burningImage = UIImageView(image: UIImage(named: "fire"))
         burningImage.frame = CGRect(
             x: healthBar.frame.midX,
@@ -381,7 +436,6 @@ class ViewController: UIViewController {
         damageLabel.textColor = .red
         damageLabel.font = UIFont.boldSystemFont(ofSize: 20)
         damageLabel.sizeToFit()
-        damageLabel.backgroundColor = .blue
         view.addSubview(damageLabel)
 
         UIView.animate(withDuration: 1.0, animations: {
@@ -390,16 +444,11 @@ class ViewController: UIViewController {
         }) { _ in
             damageLabel.removeFromSuperview()
         }
-        
-        UIView.animate(withDuration: 0.3, animations: {
-            self.healthBar.progress = (Float(self.gameState.enemyHealth) / 100)
-        })
-        currentHealthValue.text = "\(max(0, gameState.enemyHealth))/100"
-        //doesn't allow health value to go below 0, string interpolated to display current health out of 100, and will return 0 if value drops below
     }
     
     func updateHealthBar() {
         let progress = max(0, Float(gameState.enemyHealth) / 100)
+        //convert integer health value into a float (between 0.0 and 1.0), defining the % of the health bar to update to
         UIView.animate(withDuration: 0.3) {
             self.healthBar.progress = progress
         }
@@ -419,4 +468,9 @@ class ViewController: UIViewController {
         }
     }
 }
+
+
+//Questions for Austin:
+//health regen ticks cause health bar to momentarily fill up
+//animations for status effects
 
